@@ -1,0 +1,13 @@
+app:
+  title: "数字光刻成像模拟系统"
+  version: "1.0.0"
+
+camera:
+  resolution: [640, 480]
+  target_size: [224, 224]
+  white_balance: true
+  max_fps: 30
+
+model:
+  path: "yolov8s-emo.pt"
+  confidence_threshold: 0.4
