@@ -6,24 +6,33 @@ import numpy as np
 class StateManager:
     def __init__(self):
         self.current_results = {}
-        self.optimization_history = []
+        self.optimization_history = {}
 
     def update_results(self, results):
         self.current_results = results
-        # 安全地访问stats对象
-        if "stats" in results and hasattr(results["stats"], 'select'):
-            try:
-                min_fitness, avg_fitness = results["stats"].select("min", "avg")
-                self.optimization_history = {
-                    "min_fitness": min_fitness,
-                    "avg_fitness": avg_fitness
-                }
-            except Exception as e:
-                print(f"更新优化历史时出错: {e}")
-                self.optimization_history = {
-                    "min_fitness": [],
-                    "avg_fitness": []
-                }
+        # 从日志中提取优化历史数据
+        if "log" in results:
+            log = results["log"]
+            # 提取每一代的最小、平均、最大适应度
+            generations = list(range(len(log)))
+            min_fitness = [entry['min'] for entry in log]
+            avg_fitness = [entry['avg'] for entry in log]
+            max_fitness = [entry['max'] for entry in log]
+
+            self.optimization_history = {
+                "generations": generations,
+                "min_fitness": min_fitness,
+                "avg_fitness": avg_fitness,
+                "max_fitness": max_fitness
+            }
+        else:
+            # 如果没有日志数据，创建空的优化历史
+            self.optimization_history = {
+                "generations": [],
+                "min_fitness": [],
+                "avg_fitness": [],
+                "max_fitness": []
+            }
 
     def generate_stats(self):
         if not self.current_results:
@@ -59,36 +68,61 @@ class StateManager:
                                 columns=["指标", "初始值", "优化值", "改善率"])
 
     def generate_evolution_plot(self):
-        if not self.optimization_history or not self.optimization_history["min_fitness"]:
+        if not self.optimization_history or not self.optimization_history["generations"]:
             fig = go.Figure()
-            fig.add_annotation(text="暂无优化历史数据", x=0.5, y=0.5, showarrow=False)
+            fig.add_annotation(
+                text="暂无优化历史数据",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=16)
+            )
             fig.update_layout(
+                title="优化过程收敛曲线",
                 xaxis_title="迭代次数",
                 yaxis_title="适应度值",
                 showlegend=True,
-                margin=dict(t=40, b=20, l=20, r=20)
+                margin=dict(t=40, b=20, l=20, r=20),
+                height=400
             )
             return fig
 
         try:
-            generations = list(range(len(self.optimization_history["min_fitness"])))
+            generations = self.optimization_history["generations"]
+            min_fitness = self.optimization_history["min_fitness"]
+            avg_fitness = self.optimization_history["avg_fitness"]
+            max_fitness = self.optimization_history["max_fitness"]
 
             fig = go.Figure()
 
+            # 添加最小适应度曲线
             fig.add_trace(go.Scatter(
                 x=generations,
-                y=self.optimization_history["min_fitness"],
+                y=min_fitness,
                 mode='lines+markers',
                 name='最小适应度',
-                line=dict(color='red', width=2)
+                line=dict(color='red', width=2),
+                marker=dict(size=4)
             ))
 
+            # 添加平均适应度曲线
             fig.add_trace(go.Scatter(
                 x=generations,
-                y=self.optimization_history["avg_fitness"],
+                y=avg_fitness,
                 mode='lines+markers',
                 name='平均适应度',
-                line=dict(color='green', width=2)
+                line=dict(color='green', width=2),
+                marker=dict(size=4)
+            ))
+
+            # 添加最大适应度曲线
+            fig.add_trace(go.Scatter(
+                x=generations,
+                y=max_fitness,
+                mode='lines+markers',
+                name='最大适应度',
+                line=dict(color='blue', width=2),
+                marker=dict(size=4)
             ))
 
             fig.update_layout(
@@ -96,14 +130,36 @@ class StateManager:
                 xaxis_title="迭代次数",
                 yaxis_title="适应度值",
                 showlegend=True,
-                margin=dict(t=40, b=20, l=20, r=20)
+                margin=dict(t=40, b=20, l=20, r=20),
+                height=400,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
             )
 
             return fig
         except Exception as e:
             print(f"生成进化图时出错: {e}")
             fig = go.Figure()
-            fig.add_annotation(text=f"错误: {str(e)}", x=0.5, y=0.5, showarrow=False)
+            fig.add_annotation(
+                text=f"错误: {str(e)}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=16)
+            )
+            fig.update_layout(
+                title="优化过程收敛曲线",
+                xaxis_title="迭代次数",
+                yaxis_title="适应度值",
+                showlegend=True,
+                margin=dict(t=40, b=20, l=20, r=20),
+                height=400
+            )
             return fig
 
     def _calculate_contrast(self, image):

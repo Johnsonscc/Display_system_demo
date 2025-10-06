@@ -42,6 +42,9 @@ class MaskOptimizer:
     def optimize(self, initial_mask, progress_callback=None):
         Lx = Ly = self.simulator.params["image_size"]
 
+        # 确保初始掩膜在0-1范围内
+        initial_mask = np.clip(initial_mask, 0, 1)
+
         # 设置初始种群
         self.toolbox.register("individual", tools.initIterate, creator.Individual,
                               lambda: self.create_individual_with_noise(initial_mask.flatten()))
@@ -63,10 +66,12 @@ class MaskOptimizer:
         mutpb = self.simulator.params.get("mutation_rate", 0.4)
         ngen = self.simulator.params.get("generations", 20)
 
-        # 简化的遗传算法执行（可添加进度回调）
-        algorithms.eaSimple(pop, self.toolbox, cxpb=cxpb, mutpb=mutpb,
-                            ngen=ngen, stats=stats, halloffame=hof, verbose=True)
+        # 运行遗传算法并捕获日志
+        pop, log = algorithms.eaSimple(pop, self.toolbox, cxpb=cxpb, mutpb=mutpb,
+                                       ngen=ngen, stats=stats, halloffame=hof, verbose=True)
 
-        # 返回最优个体
+        # 返回最优个体和日志
         best_mask = np.array(hof[0], dtype=np.float32).reshape((Lx, Ly))
-        return best_mask, stats
+        best_mask = np.clip(best_mask, 0, 1)
+
+        return best_mask, log

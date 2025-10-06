@@ -6,6 +6,8 @@ import gradio as gr
 import numpy as np
 import time
 from PIL import Image
+import plotly.graph_objects as go  # 确保导入plotly
+import pandas as pd
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -78,7 +80,7 @@ class LithographyApp:
 
             # 使用遗传算法优化掩膜
             optimizer = MaskOptimizer(self.simulator, target_array)
-            best_mask, stats = optimizer.optimize(mask_array)
+            best_mask, log = optimizer.optimize(mask_array)  # 现在返回log而不是stats
 
             progress(0.8, desc="正在执行优化后仿真...")
 
@@ -87,7 +89,7 @@ class LithographyApp:
             optimized_binary = self.simulator.binarize_image(optimized_simulation)
             optimized_pe = np.sum(np.abs(optimized_binary.astype(np.float32) - target_array.astype(np.float32)))
 
-            # 保存结果 - 现在包含所有六个图像
+            # 保存结果 - 包含所有六个图像和优化日志
             self.current_results = {
                 "original": target_array,  # 原始图像
                 "initial": {
@@ -103,7 +105,7 @@ class LithographyApp:
                     "pe": optimized_pe
                 },
                 "target": target_array,
-                "stats": stats
+                "log": log  # 保存优化日志而不是stats
             }
 
             # 更新状态管理器
@@ -129,7 +131,21 @@ class LithographyApp:
 
             # 创建空的进化图
             fig = go.Figure()
-            fig.add_annotation(text="暂无数据", x=0.5, y=0.5, showarrow=False)
+            fig.add_annotation(
+                text="暂无数据",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=16)
+            )
+            fig.update_layout(
+                title="优化过程收敛曲线",
+                xaxis_title="迭代次数",
+                yaxis_title="适应度值",
+                showlegend=True,
+                margin=dict(t=40, b=20, l=20, r=20),
+                height=400
+            )
 
             return empty_pil, empty_pil, empty_pil, empty_pil, empty_pil, empty_pil, empty_df, fig
 
@@ -184,7 +200,21 @@ class LithographyApp:
                                     columns=["指标", "初始值", "优化值", "改善率"])
 
             fig = go.Figure()
-            fig.add_annotation(text=f"错误: {str(e)}", x=0.5, y=0.5, showarrow=False)
+            fig.add_annotation(
+                text=f"错误: {str(e)}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=16)
+            )
+            fig.update_layout(
+                title="优化过程收敛曲线",
+                xaxis_title="迭代次数",
+                yaxis_title="适应度值",
+                showlegend=True,
+                margin=dict(t=40, b=20, l=20, r=20),
+                height=400
+            )
 
             return error_pil, error_pil, error_pil, error_pil, error_pil, error_pil, error_df, fig
 
@@ -196,17 +226,20 @@ def run_app():
             title="数字光刻成像模拟系统",
             theme=load_theme(),
             css="assets/styles.css",
+            # 添加全屏布局属性
+            fill_width=True,
+            fill_height=True
     ) as demo:
         create_header()
 
-        # 使用更宽的整体布局
-        with gr.Row():
-            # 左侧输入面板 - 减少宽度比例
-            with gr.Column(scale=2):
+        # 使用全宽布局容器
+        with gr.Row(elem_classes=["main-content"]):
+            # 左侧输入面板
+            with gr.Column(scale=3, min_width=300):
                 input_components = create_input_panel(DEFAULT_PARAMETERS)
 
-            # 右侧输出面板 - 增加宽度比例
-            with gr.Column(scale=12):
+            # 右侧输出面板
+            with gr.Column(scale=9, min_width=600):
                 output_components = create_output_panel(app.state_manager)
 
         create_footer()
@@ -247,13 +280,15 @@ def run_app():
             outputs=[output_components["system_status"]]
         )
 
-    # 启动时设置更大的窗口尺寸
+    # 启动时设置全屏参数
     demo.launch(
         server_name="127.0.0.1",
         server_port=7860,
         share=True,
-        inbrowser=True,  # 自动在浏览器中打开
-        show_error=True
+        inbrowser=False,
+        show_error=True,
+        max_threads=50,
+        prevent_thread_lock=False
     )
 
 if __name__ == "__main__":
